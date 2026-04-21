@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function ApplicationLogs({ logs }) {
+export default function ApplicationLogs({ logs, totalCount }) {
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState("All");
 
@@ -51,6 +51,73 @@ export default function ApplicationLogs({ logs }) {
     { name: "Info",     value: stats.info,     fill: "#73bf69" },
   ];
 
+  const liveStatus = useMemo(() => {
+    const now = Date.now();
+    const twoMinutes = 2 * 60 * 1000;
+    const fiveMinutes = 5 * 60 * 1000;
+
+    let latestTs = null;
+    let recent2m = 0;
+    let recent5m = 0;
+    let recentErrors = 0;
+    let recentApiSignals = 0;
+
+    combinedLogs.forEach((log) => {
+      const ts = new Date(log.timestamp || log.TimeCreated || log.createdAt).getTime();
+      if (!Number.isFinite(ts)) return;
+
+      if (latestTs === null || ts > latestTs) {
+        latestTs = ts;
+      }
+
+      const age = now - ts;
+      if (age <= fiveMinutes) {
+        recent5m += 1;
+
+        const level = String(log.level || log.Level || log.severity || "").toLowerCase();
+        if (level.includes("error") || level.includes("critical")) {
+          recentErrors += 1;
+        }
+
+        const sourceBlob = [
+          log.service,
+          log.source,
+          log.endpoint,
+          log.event_category,
+          log.message,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        if (
+          sourceBlob.includes("api") ||
+          sourceBlob.includes("http") ||
+          sourceBlob.includes("/v1") ||
+          sourceBlob.includes("/v2")
+        ) {
+          recentApiSignals += 1;
+        }
+      }
+
+      if (age <= twoMinutes) {
+        recent2m += 1;
+      }
+    });
+
+    const minutesSinceLast = latestTs === null ? null : Math.floor((now - latestTs) / 60000);
+
+    return {
+      recent5m,
+      recentErrors,
+      recentApiSignals,
+      minutesSinceLast,
+      ingestState: recent2m > 0 ? "connected" : recent5m > 0 ? "lagging" : "offline",
+      errorState: recentErrors >= 5 ? "spike" : recentErrors > 0 ? "active" : "quiet",
+      apiState: recentApiSignals > 0 ? "active" : "idle",
+    };
+  }, [combinedLogs]);
+
   const getLevelBadge = (level) => {
     const l = (level || "").toLowerCase();
     if (l.includes("error") || l.includes("critical")) return "badge-critical";
@@ -64,13 +131,13 @@ export default function ApplicationLogs({ logs }) {
       <div style={{ padding: "0 2px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="badge badge-info" style={{ fontSize: 10 }}>⚙️ APP & DB EVENTS</span>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{combinedLogs.length.toLocaleString()} total logged events</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(totalCount ?? combinedLogs.length).toLocaleString()} total logged events</span>
         </div>
       </div>
 
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         {[
-          { label: "Total Events", value: stats.total, colorClass: "blue" },
+          { label: "Total Events", value: totalCount ?? stats.total, colorClass: "blue" },
           { label: "Errors",       value: stats.errors, colorClass: "red" },
           { label: "Warnings",     value: stats.warnings, colorClass: "orange" },
           { label: "Info",         value: stats.info, colorClass: "green" },
@@ -170,26 +237,60 @@ export default function ApplicationLogs({ logs }) {
           
           <div className="panel" style={{ flex: 1 }}>
             <div className="panel-header">
-              <div className="panel-title"><span className="panel-title-icon">🔗</span> Integration Status</div>
+              <div className="panel-title"><span className="panel-title-icon">🔗</span> Live Stream Status</div>
             </div>
             <div className="panel-body">
               <div className="mini-stat-row">
-                <div className="mini-stat-key" style={{ color: "var(--accent-orange)" }}>MongoDB</div>
-                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                  <div className="status-dot green" /> Connected
+                <div className="mini-stat-key" style={{ color: "var(--accent-orange)" }}>App Event Ingest</div>
+                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: liveStatus.ingestState === "offline" ? "var(--severity-critical)" : liveStatus.ingestState === "lagging" ? "var(--severity-high)" : "var(--accent-green)" }}>
+                  <div
+                    className="status-dot"
+                    style={{
+                      background:
+                        liveStatus.ingestState === "offline"
+                          ? "var(--severity-critical)"
+                          : liveStatus.ingestState === "lagging"
+                            ? "var(--severity-high)"
+                            : "var(--accent-green)",
+                      animation: liveStatus.ingestState === "offline" ? "none" : undefined,
+                    }}
+                  />
+                  {liveStatus.ingestState === "connected" ? "Connected" : liveStatus.ingestState === "lagging" ? "Lagging" : "Offline"}
                 </div>
               </div>
               <div className="mini-stat-row">
-                <div className="mini-stat-key" style={{ color: "var(--accent-cyan)" }}>Web App Express</div>
-                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                  <div className="status-dot green" /> Connected
+                <div className="mini-stat-key" style={{ color: "var(--accent-cyan)" }}>Error Channel (5m)</div>
+                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: liveStatus.errorState === "spike" ? "var(--severity-critical)" : liveStatus.errorState === "active" ? "var(--severity-high)" : "var(--text-muted)" }}>
+                  <div
+                    className="status-dot"
+                    style={{
+                      background:
+                        liveStatus.errorState === "spike"
+                          ? "var(--severity-critical)"
+                          : liveStatus.errorState === "active"
+                            ? "var(--severity-high)"
+                            : "var(--text-disabled)",
+                      animation: liveStatus.errorState === "quiet" ? "none" : undefined,
+                    }}
+                  />
+                  {liveStatus.errorState === "spike" ? "Spike" : liveStatus.errorState === "active" ? "Active" : "Quiet"} ({liveStatus.recentErrors})
                 </div>
               </div>
               <div className="mini-stat-row" style={{ borderBottom: "none" }}>
-                <div className="mini-stat-key" style={{ color: "var(--accent-purple)" }}>External APIs</div>
-                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)" }}>
-                  <div className="status-dot" style={{ background: "var(--text-disabled)", animation: "none" }} /> Idle
+                <div className="mini-stat-key" style={{ color: "var(--accent-purple)" }}>External/API Signals</div>
+                <div className="mini-stat-val" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: liveStatus.apiState === "active" ? "var(--accent-cyan)" : "var(--text-muted)" }}>
+                  <div
+                    className="status-dot"
+                    style={{
+                      background: liveStatus.apiState === "active" ? "var(--accent-cyan)" : "var(--text-disabled)",
+                      animation: liveStatus.apiState === "active" ? undefined : "none",
+                    }}
+                  />
+                  {liveStatus.apiState === "active" ? "Active" : "Idle"} ({liveStatus.recentApiSignals})
                 </div>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 10, color: "var(--text-muted)" }}>
+                Last event: {liveStatus.minutesSinceLast == null ? "no data yet" : `${liveStatus.minutesSinceLast} min ago`} | {liveStatus.recent5m} events in last 5m
               </div>
             </div>
           </div>

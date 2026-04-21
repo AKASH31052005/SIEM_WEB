@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function DatabaseDashboard({ logs }) {
+export default function DatabaseDashboard({ logs, totalCount }) {
   const [search, setSearch] = useState("");
   const [opFilter, setOpFilter] = useState("All");
 
@@ -86,7 +86,7 @@ export default function DatabaseDashboard({ logs }) {
       <div style={{ padding: "0 2px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="badge badge-info" style={{ fontSize: 10 }}>🗄️ DATABASE ACTIVITY</span>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{dbLogs.length.toLocaleString()} total query logs</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(totalCount ?? dbLogs.length).toLocaleString()} total query logs</span>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export default function DatabaseDashboard({ logs }) {
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="stat-panel" style={{ borderTop: `2px solid #5794f2` }}>
           <div className="stat-label">Total Queries</div>
-          <div className="stat-value blue">{dbLogs.length}</div>
+          <div className="stat-value blue">{(totalCount ?? dbLogs.length).toLocaleString()}</div>
         </div>
         <div className="stat-panel" style={{ borderTop: `2px solid #f2c94c` }}>
           <div className="stat-label">Select Operations</div>

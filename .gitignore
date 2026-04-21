@@ -34,3 +34,10 @@ backend/*.log
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Zip files
+*.zip
+
+# Environment files
+backend/.env
+.env

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import axios from "axios";
+import API from "../api";
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -20,7 +20,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function AlertsPage({ alerts, soarLogs }) {
+export default function AlertsPage({ alerts, soarLogs, onResolveAlert }) {
   const [search, setSearch] = useState("");
   const [sevFilter, setSevFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -44,7 +44,11 @@ export default function AlertsPage({ alerts, soarLogs }) {
   const handleResolve = async (alert) => {
     setResolving(alert._id);
     try {
-      await axios.put(`http://localhost:5000/api/alerts/${alert._id}`);
+      if (onResolveAlert) {
+        await onResolveAlert(alert._id);
+      } else {
+        await API.put(`/api/alerts/${alert._id}`);
+      }
     } catch (e) {
       console.error(e);
     }

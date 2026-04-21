@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 
 const SEVERITY_COLORS = {
@@ -51,7 +51,7 @@ function StatPanel({ label, value, colorClass, icon, subtext, change }) {
   );
 }
 
-export default function Overview({ alerts, logs, soarLogs }) {
+export default function Overview({ alerts, logs, soarLogs, logSummary }) {
   const stats = useMemo(() => ({
     total: alerts.length,
     critical: alerts.filter(a => a.severity === "Critical").length,
@@ -60,9 +60,9 @@ export default function Overview({ alerts, logs, soarLogs }) {
     low: alerts.filter(a => a.severity === "Low").length,
     resolved: alerts.filter(a => a.status === "Resolved").length,
     open: alerts.filter(a => !a.status || a.status === "Open").length,
-    totalLogs: logs.length,
+    totalLogs: Number.isFinite(logSummary?.total) ? logSummary.total : logs.length,
     blockedIPs: soarLogs.length,
-  }), [alerts, logs, soarLogs]);
+  }), [alerts, logs.length, logSummary?.total, soarLogs.length]);
 
   // Severity bar distribution widths
   const totalSev = stats.critical + stats.high + stats.medium + stats.low || 1;
@@ -98,16 +98,20 @@ export default function Overview({ alerts, logs, soarLogs }) {
 
   // Log type distribution
   const logTypeData = useMemo(() => {
-    const types = {};
-    logs.forEach(l => {
-      const t = l.logType || l.LogType || "Unknown";
-      types[t] = (types[t] || 0) + 1;
-    });
-    return Object.entries(types)
+    const sourceCounts = logSummary?.bySource || {};
+    const preferred = Object.keys(sourceCounts).length > 0
+      ? sourceCounts
+      : logs.reduce((acc, log) => {
+        const type = log.logType || log.LogType || "unknown";
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+
+    return Object.entries(preferred)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([name, value]) => ({ name, value }));
-  }, [logs]);
+  }, [logSummary, logs]);
 
   // Top Alert Types
   const topAlertTypes = useMemo(() => {

@@ -16,7 +16,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function NetworkPage({ alerts = [], logs = [] }) {
+export default function NetworkPage({ alerts = [], logs = [], totalCount }) {
   const [history, setHistory] = useState([]);
   const [search, setSearch] = useState("");
 
@@ -125,7 +125,7 @@ export default function NetworkPage({ alerts = [], logs = [] }) {
       {/* ── STAT PANELS ── */}
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         {[
-          { label: "Total Events",    value: netLogs.length,  colorClass: "blue" },
+          { label: "Total Events",    value: totalCount ?? netLogs.length,  colorClass: "blue" },
           { label: "Unique Source IPs", value: uniqueIPs,     colorClass: "orange" },
           { label: "Suspicious",      value: suspiciousCount, colorClass: "red" },
           { label: "Network Alerts",  value: netAlerts.length, colorClass: "yellow" },

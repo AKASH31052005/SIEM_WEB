@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function LinuxDashboard({ logs }) {
+export default function LinuxDashboard({ logs, totalCount }) {
   const [search, setSearch] = useState("");
   const [facilityFilter, setFacilityFilter] = useState("All");
 
@@ -80,7 +80,7 @@ export default function LinuxDashboard({ logs }) {
       <div style={{ padding: "0 2px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="badge badge-info" style={{ fontSize: 10 }}>🐧 LINUX SYSLOG</span>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{linuxLogs.length.toLocaleString()} total events indexed</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(totalCount ?? linuxLogs.length).toLocaleString()} total events indexed</span>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function LinuxDashboard({ logs }) {
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="stat-panel" style={{ borderTop: `2px solid #5794f2` }}>
           <div className="stat-label">Total Logs</div>
-          <div className="stat-value blue">{linuxLogs.length}</div>
+          <div className="stat-value blue">{(totalCount ?? linuxLogs.length).toLocaleString()}</div>
         </div>
         <div className="stat-panel" style={{ borderTop: `2px solid #f2495c` }}>
           <div className="stat-label">Auth Failures</div>

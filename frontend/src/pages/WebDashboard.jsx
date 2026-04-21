@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function WebDashboard({ logs }) {
+export default function WebDashboard({ logs, totalCount }) {
   const [search, setSearch] = useState("");
   const [methodFilter, setMethodFilter] = useState("All");
 
@@ -92,7 +92,7 @@ export default function WebDashboard({ logs }) {
       <div style={{ padding: "0 2px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="badge badge-info" style={{ fontSize: 10 }}>🌩️ WEB LOGS</span>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{webLogs.length.toLocaleString()} total requests indexed</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(totalCount ?? webLogs.length).toLocaleString()} total requests indexed</span>
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export default function WebDashboard({ logs }) {
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <div className="stat-panel" style={{ borderTop: `2px solid #5794f2` }}>
           <div className="stat-label">Total Requests</div>
-          <div className="stat-value blue">{webLogs.length}</div>
+          <div className="stat-value blue">{(totalCount ?? webLogs.length).toLocaleString()}</div>
         </div>
         <div className="stat-panel" style={{ borderTop: `2px solid #f2495c` }}>
           <div className="stat-label">Server Errors (5xx)</div>

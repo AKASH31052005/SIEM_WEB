@@ -52,15 +52,39 @@ router.post("/", async (req, res) => {
     console.log("Incoming Windows Log:", req.body);
     try {
         const logData = req.body;
+        global.lastWindowsAgentHeartbeatAt = Date.now();
+        const eventRecordId = Number(logData.EventRecordID);
+        const eventId = Number(logData.EventID);
+        const dedupeFilter = {
+            LogType: logData.LogType || "Security",
+            MachineName: logData.MachineName || "unknown",
+            TimeCreated: logData.TimeCreated || null,
+        };
+
+        if (Number.isFinite(eventRecordId)) {
+            dedupeFilter.EventRecordID = eventRecordId;
+        }
+        if (Number.isFinite(eventId)) {
+            dedupeFilter.EventID = eventId;
+        }
+
+        const existing = await WindowsLog.findOne(dedupeFilter).lean();
+        if (existing) {
+            return res.status(200).json({ message: "Duplicate log ignored" });
+        }
+
         const savedLog = await WindowsLog.create(logData);
         await detectWindowsThreat(savedLog);
 
         if (global.io) {
-            global.io.emit("newLog", {
+            const payload = {
                 ...savedLog.toObject(),
+                source: "windows",
                 logType: "windows",
                 timestamp: savedLog.TimeCreated || savedLog.createdAt
-            });
+            };
+            global.io.emit("newLog", payload);
+            global.io.emit("new_log", payload);
         }
 
         res.status(200).json({ message: "Windows log received" });
@@ -141,6 +165,9 @@ router.post("/metrics", async (req, res) => {
   const data = req.body;
 
   console.log("Incoming Metrics:", data);
+  if (data && (data.agentType === "windows_collector" || data.collector === "windows-agent")) {
+    global.lastWindowsAgentHeartbeatAt = Date.now();
+  }
 
   try {
     await Metrics.create({
