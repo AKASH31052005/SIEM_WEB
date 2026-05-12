@@ -5,7 +5,7 @@ const WindowsLogSchema = new mongoose.Schema({
 
     EventRecordID: {
         type: Number,
-        required: true
+        default: null
     },
 
     EventID: {

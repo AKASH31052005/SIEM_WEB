@@ -81,18 +81,20 @@ export default function useSourceLogs({
         const params = new URLSearchParams({
           timeRange,
           limit: String(limit),
+          _ts: String(Date.now()),
         });
         const res = await API.get(`/api/logs/source/${sourceType}?${params.toString()}`);
 
         if (cancelled) return;
         const data = res.data || {};
-        setLogs(Array.isArray(data.logs) ? data.logs : []);
-        setTotal(Number.isFinite(data.total) ? data.total : (data.logs || []).length);
+        setLogs((prev) => (Array.isArray(data.logs) ? data.logs : prev));
+        setTotal((prevTotal) => {
+          if (Number.isFinite(data.total)) return data.total;
+          if (Array.isArray(data.logs)) return Math.max(prevTotal, data.logs.length);
+          return prevTotal;
+        });
       } catch (err) {
-        if (!cancelled) {
-          setLogs([]);
-          setTotal(0);
-        }
+        // Keep previous values on transient failure so counters do not jump back to 0.
       } finally {
         if (!cancelled) {
           setLoading(false);

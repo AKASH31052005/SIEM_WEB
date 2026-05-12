@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import API from "../api";
 import {
   Bar,
   BarChart,
@@ -126,6 +127,28 @@ export default function WindowsDashboard({ logs = [], totalCount }) {
   const [search, setSearch] = useState("");
   const [eventFilter, setEventFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
+  const [agentHealth, setAgentHealth] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let intervalId = null;
+
+    async function fetchHealth() {
+      try {
+        const res = await API.get("/api/agent/windows-health");
+        if (!cancelled) setAgentHealth(res.data || null);
+      } catch (err) {
+        if (!cancelled) setAgentHealth(null);
+      }
+    }
+
+    fetchHealth();
+    intervalId = setInterval(fetchHealth, 10000);
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
 
   const windowsLogs = useMemo(() => {
     if (!Array.isArray(logs)) return [];
@@ -296,6 +319,11 @@ export default function WindowsDashboard({ logs = [], totalCount }) {
           <span className="badge badge-info" style={{ fontSize: 10 }}>
             WINDOWS SECURITY
           </span>
+          {agentHealth?.status ? (
+            <span className={`badge ${agentHealth.stale ? "badge-critical" : "badge-medium"}`} style={{ fontSize: 10 }}>
+              AGENT {agentHealth.stale ? "STALE" : "HEALTHY"}
+            </span>
+          ) : null}
           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
             {(totalCount ?? windowsLogs.length).toLocaleString()} total events indexed
           </span>

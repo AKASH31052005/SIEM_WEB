@@ -8,6 +8,40 @@ const { createAlertIfNotExists } = require("../utils/alertHelper");
    BRUTE FORCE TRACKER
 ===================================== */
 const failedLoginTracker = {};
+const WINDOWS_HEARTBEAT_STALE_MS = 90000;
+
+function pickFirstValue(...values) {
+    for (const value of values) {
+        if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return null;
+}
+
+function normalizeWindowsLog(raw = {}) {
+    const eventRecordIdRaw = pickFirstValue(raw.EventRecordID, raw.eventRecordId, raw.recordId);
+    const eventIdRaw = pickFirstValue(raw.EventID, raw.eventId, raw.id);
+    const timeCreatedRaw = pickFirstValue(raw.TimeCreated, raw.timeCreated, raw.timestamp, raw.createdAt);
+
+    const eventRecordId = Number(eventRecordIdRaw);
+    const eventId = Number(eventIdRaw);
+    const timeCreatedDate = timeCreatedRaw ? new Date(timeCreatedRaw) : new Date();
+    const isValidTime = !Number.isNaN(timeCreatedDate.getTime());
+
+    return {
+        LogType: String(pickFirstValue(raw.LogType, raw.logType, "Security")),
+        EventRecordID: Number.isFinite(eventRecordId) ? eventRecordId : null,
+        EventID: Number.isFinite(eventId) ? eventId : null,
+        TimeCreated: isValidTime ? timeCreatedDate : new Date(),
+        Level: String(pickFirstValue(raw.Level, raw.level, "Information")),
+        MachineName: String(pickFirstValue(raw.MachineName, raw.machineName, raw.hostname, "unknown")),
+        Message: String(pickFirstValue(raw.Message, raw.message, "")),
+        Username: String(pickFirstValue(raw.Username, raw.username, "unknown")),
+        LogonType: pickFirstValue(raw.LogonType, raw.logonType, null),
+        SourceIP: String(pickFirstValue(raw.SourceIP, raw.sourceIP, raw.srcIP, "unknown")),
+        Status: pickFirstValue(raw.Status, raw.status, null),
+        Category: pickFirstValue(raw.Category, raw.category, null),
+    };
+}
 
 /* =====================================
    WINDOWS DETECTION ENGINE
@@ -51,21 +85,19 @@ async function detectWindowsThreat(log) {
 router.post("/", async (req, res) => {
     console.log("Incoming Windows Log:", req.body);
     try {
-        const logData = req.body;
+        const logData = normalizeWindowsLog(req.body);
         global.lastWindowsAgentHeartbeatAt = Date.now();
-        const eventRecordId = Number(logData.EventRecordID);
-        const eventId = Number(logData.EventID);
         const dedupeFilter = {
             LogType: logData.LogType || "Security",
             MachineName: logData.MachineName || "unknown",
             TimeCreated: logData.TimeCreated || null,
         };
 
-        if (Number.isFinite(eventRecordId)) {
-            dedupeFilter.EventRecordID = eventRecordId;
+        if (Number.isFinite(logData.EventRecordID)) {
+            dedupeFilter.EventRecordID = logData.EventRecordID;
         }
-        if (Number.isFinite(eventId)) {
-            dedupeFilter.EventID = eventId;
+        if (Number.isFinite(logData.EventID)) {
+            dedupeFilter.EventID = logData.EventID;
         }
 
         const existing = await WindowsLog.findOne(dedupeFilter).lean();
@@ -92,6 +124,27 @@ router.post("/", async (req, res) => {
         if (err.code === 11000) return res.status(200).json({ message: "Duplicate log ignored" });
         console.error("Windows log error:", err.message);
         res.status(500).json({ error: "Failed to save log" });
+    }
+});
+
+router.get("/windows-health", async (req, res) => {
+    try {
+        const now = Date.now();
+        const lastHeartbeatAt = Number(global.lastWindowsAgentHeartbeatAt || 0);
+        const stale = !lastHeartbeatAt || (now - lastHeartbeatAt > WINDOWS_HEARTBEAT_STALE_MS);
+        const latestLog = await WindowsLog.findOne().sort({ TimeCreated: -1, createdAt: -1 }).lean();
+
+        res.json({
+            status: stale ? "stale" : "healthy",
+            stale,
+            lastHeartbeatAt: lastHeartbeatAt ? new Date(lastHeartbeatAt).toISOString() : null,
+            lastLogAt: latestLog?.TimeCreated || latestLog?.createdAt || null,
+            totalWindowsLogs: await WindowsLog.countDocuments(),
+            generatedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        console.error("Windows health error:", err.message);
+        res.status(500).json({ error: "Failed to load windows health" });
     }
 });
 
